@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'firebase_options.dart';
 import 'login_screen.dart';
 import 'seat_reservation_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
@@ -18,8 +22,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: '임산부 배려석 예약 시스템',
       theme: ThemeData(
-        primarySwatch: Colors.pink,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.pink),
+        useMaterial3: true,
       ),
       home: const RootScreen(),
     );
@@ -33,17 +37,15 @@ class RootScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.active) {
-          if (snapshot.hasData) {
-            return const SeatReservationScreen();
-          } else {
-            return const LoginScreen();
-          }
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.active) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+        return snap.hasData
+            ? const SeatReservationScreen()
+            : const LoginScreen();
       },
     );
   }
