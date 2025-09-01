@@ -1,9 +1,10 @@
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
+import 'package:train_system/login_screen.dart';
 
 class SeatReservationScreen extends StatefulWidget {
   final String trainId;
@@ -48,7 +49,6 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
 
   @override
   void dispose() {
-    // Cancel the listener when the screen is disposed
     _seatListener?.cancel();
     super.dispose();
   }
@@ -99,7 +99,7 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
   Future<void> _showOccupiedConfirmDialog() async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: false, // User must interact
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('착석 확인'),
@@ -150,7 +150,7 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
                 child: Text(confirmActionText),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _performSeatToggle(seatDoc); // Perform the actual DB operation
+                  _performSeatToggle(seatDoc);
                 },
               ),
           ],
@@ -195,23 +195,22 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
   }
 
   Color _seatColor(Map<String, dynamic> d, String? myUid) {
-  final reserved = d['reserved'] == true;
-  final reservedBy = d['reservedBy'];
-  final isPriority = d['isPriority'] == true;
-  final isOccupied = d['isOccupied'] == true; // ← 파이썬이 쓰는 필드
+    final reserved = d['reserved'] == true;
+    final reservedBy = d['reservedBy'];
+    final isPriority = d['isPriority'] == true;
+    final isOccupied = d['isOccupied'] == true; // ← 파이썬이 쓰는 필드
 
-  if (reserved && reservedBy == myUid) {
-    return Colors.green; // 내가 예약한 좌석
+    if (reserved && reservedBy == myUid) {
+      return Colors.green; // 내가 예약한 좌석
+    }
+    if (reserved) {
+      return Colors.red; // 다른 사람이 예약함
+    }
+    if (isOccupied) {
+      return Colors.blue; // 비예약 상태지만 실제 사람이 앉아 있음
+    }
+    return isPriority ? Colors.pink.shade200 : Colors.grey.shade400;
   }
-  if (reserved) {
-    return Colors.red;   // 다른 사람이 예약함
-  }
-  if (isOccupied) {
-    return Colors.blue;  // 비예약 상태지만 실제 사람이 앉아 있음
-  }
-  return isPriority ? Colors.pink.shade200 : Colors.grey.shade400;
-}
-
 
   Widget _seatTile(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
@@ -246,7 +245,15 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
   }
 
   Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
+    // 화면을 먼저 정리해서 StreamBuilder가 dispose되도록 함
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+    // 다음 틱에서 실제 로그아웃 실행 (현재 화면 dispose 보장)
+    Future.microtask(() => FirebaseAuth.instance.signOut());
   }
 
   @override
@@ -256,9 +263,10 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
         title: Text('칸 ${widget.carNumber} - 좌석 예약'),
         actions: [
           IconButton(
-              onPressed: _signOut,
-              icon: const Icon(Icons.logout),
-              tooltip: '로그아웃'),
+            onPressed: _signOut,
+            icon: const Icon(Icons.logout),
+            tooltip: '로그아웃',
+          ),
         ],
       ),
       body: FutureBuilder<void>(
@@ -279,9 +287,23 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
                 return const Center(
                     child: CircularProgressIndicator(key: ValueKey('stream')));
               }
+
               if (snap.hasError) {
+                final err = snap.error;
+                // 권한 오류면 조용히 로그인으로 리다이렉트
+                if (err is FirebaseException && err.code == 'permission-denied') {
+                  Future.microtask(() {
+                    if (!mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  });
+                  return const SizedBox.shrink();
+                }
                 return Center(child: Text('오류: ${snap.error}'));
               }
+
               final docs = snap.data?.docs ?? [];
               if (docs.isEmpty) {
                 return const Center(
