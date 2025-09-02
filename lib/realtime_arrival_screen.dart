@@ -115,8 +115,11 @@ class _RealtimeArrivalScreenState extends State<RealtimeArrivalScreen> {
     );
 
     if (selectedCar != null) {
-      final trainId = '${trainInfo['subwayId']}-${trainInfo['btrainNo']}';
-      final carNumber = selectedCar.toString();
+      // [테스트용 고정값] 아래의 기존 코드를 주석 처리하고 고정값을 사용합니다.
+      // final trainId = '${trainInfo['subwayId']}-${trainInfo['btrainNo']}';
+      // final carNumber = selectedCar.toString();
+      const trainId = '1002-2227';
+      const carNumber = '1';
 
       // DEBUG: Print trainId and carNumber for the Python script
       // ignore: avoid_print

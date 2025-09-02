@@ -54,7 +54,6 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await fn();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMsg)));
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
         'invalid-email' => '이메일 형식이 올바르지 않습니다.',

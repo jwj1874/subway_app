@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_options.dart';
 import 'login_screen.dart';
-import 'seat_reservation_screen.dart';
+import 'realtime_arrival_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +44,7 @@ class RootScreen extends StatelessWidget {
           );
         }
         return snap.hasData
-            ? const SeatReservationScreen()
+            ? const RealtimeArrivalScreen()
             : const LoginScreen();
       },
     );

@@ -98,6 +98,10 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
           if (isOccupied && !_dialogsShownForSeats.contains(seatId)) {
             _showOccupiedConfirmDialog();
             _dialogsShownForSeats.add(seatId);
+          } else if (!isOccupied && _dialogsShownForSeats.contains(seatId)) {
+            // 사용자가 좌석에서 일어났을 때 예약 해제
+            _releaseReservation(doc);
+            _dialogsShownForSeats.remove(seatId);
           }
         }
       }
@@ -129,6 +133,53 @@ class _SeatReservationScreenState extends State<SeatReservationScreen> {
         );
       },
     );
+  }
+
+  Future<void> _releaseReservation(DocumentSnapshot seatDoc) async {
+    final myUid = _me!.uid;
+    final seatRef = seatDoc.reference;
+    final seatId = seatDoc.id;
+
+    try {
+      await _db.runTransaction((tx) async {
+        final carSnap = await tx.get(_carDocRef);
+        if (!carSnap.exists) {
+          throw Exception('차량 정보가 존재하지 않습니다.');
+        }
+        final carData = carSnap.data() as Map<String, dynamic>;
+        final Map<String, dynamic> userSeatLookup =
+            (carData['userSeatLookup'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ??
+                <String, dynamic>{};
+        final existingSeatId = userSeatLookup[myUid] as String?;
+
+        final snap = await tx.get(seatRef);
+        if (!snap.exists) {
+          throw Exception('좌석 정보가 존재하지 않습니다.');
+        }
+        final d = snap.data() as Map<String, dynamic>;
+        final reservedBy = d['reservedBy'] as String?;
+
+        if (reservedBy == myUid) {
+          tx.update(seatRef, {
+            'reserved': false,
+            'reservedBy': null,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(_carDocRef, {
+            'userSeatLookup.$myUid': FieldValue.delete(),
+          });
+        }
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('좌석 $seatId 예약이 해제되었습니다.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   Future<void> _showReservationConfirmDialog(DocumentSnapshot seatDoc) async {
